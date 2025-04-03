@@ -8,8 +8,6 @@ namespace Sandstorm\NeosAcl\Service;
 
 use Neos\ContentRepository\Core\DimensionSpace\DimensionSpacePoint;
 use Neos\ContentRepository\Core\NodeType\NodeType;
-use Neos\ContentRepository\Core\NodeType\NodeTypeManager;
-use Neos\ContentRepository\Core\Projection\ContentGraph\Filter\FindClosestNodeFilter;
 use Neos\ContentRepository\Core\Projection\ContentGraph\Node;
 use Neos\ContentRepository\Core\SharedModel\ContentRepository\ContentRepositoryId;
 use Neos\ContentRepository\Core\SharedModel\Node\NodeAggregateId;
@@ -20,7 +18,6 @@ use Neos\Flow\Mvc\ActionRequest;
 use Neos\Flow\Mvc\Routing\UriBuilder;
 use Neos\Flow\ResourceManagement\ResourceManager;
 use Neos\Flow\Security\Context;
-use Neos\Neos\Domain\Model\Site;
 use Neos\Neos\Domain\Model\WorkspaceClassification;
 use Neos\Neos\Domain\Service\NodeTypeNameFactory;
 use Neos\Neos\Domain\Service\WorkspaceService;
@@ -32,13 +29,6 @@ use Sandstorm\NeosAcl\Domain\Dto\MatcherConfiguration;
  * @Flow\Scope("singleton")
  */
 class DynamicRoleEditorService {
-
-    /**
-     * @Flow\Inject
-     * @var NodeTypeManager
-     */
-    protected $nodeTypeManager;
-
     /**
      * @Flow\Inject
      * @var ContentRepositoryRegistry
@@ -74,28 +64,31 @@ class DynamicRoleEditorService {
      */
     protected $userService;
 
-    public function generatePropsForReactWidget(ActionRequest $actionRequest, ?MatcherConfiguration $dynamicRoleMatcherConfiguration): string {
+    public function generatePropsForReactWidget(ActionRequest $actionRequest, ?MatcherConfiguration $dynamicRoleMatcherConfiguration): array {
         $siteDetectionResult = SiteDetectionResult::fromRequest($actionRequest->getHttpRequest());
         $contentRepositoryId = $siteDetectionResult->contentRepositoryId;
+        $siteNode = $this->getSiteNode($contentRepositoryId);
         $props = [
-            'nodeTypes' => $this->generateNodeTypeNames(),
+            'nodeTypes' => $this->generateNodeTypeNames($contentRepositoryId),
             'nodeSearchEndpoint' => $this->generateNodeSearchEndpoint($actionRequest),
-            'siteNodeName' => $this->getSiteNode($contentRepositoryId)->aggregateId,
+            'siteNodeName' => $siteNode->aggregateId,
             'nodeTreeLoadingDepth' => (int)$this->nodeTreeLoadingDepth,
             'csrfProtectionToken' => $this->securityContext->getCsrfProtectionToken(),
             'cssFilePath' => $this->resourceManager->getPublicPackageResourceUriByPath('resource://Sandstorm.NeosAcl/Public/React/extra-neos-wrapper.css'),
             'workspaces' => $this->getWorkspaces($contentRepositoryId),
             'dimensions' => $this->getDimensionPresets($contentRepositoryId),
-            'expandedNodes' => $dynamicRoleMatcherConfiguration ? $this->generateExpandedNodeIdentifiers($dynamicRoleMatcherConfiguration, $this->getSiteNode()) : [],
+            'expandedNodes' => $dynamicRoleMatcherConfiguration ? $this->generateExpandedNodeIdentifiers($dynamicRoleMatcherConfiguration, $siteNode) : [],
         ];
 
-        return json_encode($props);
+        return ($props);
     }
 
-    private function generateNodeTypeNames() {
+    private function generateNodeTypeNames(ContentRepositoryId $contentRepositoryId) {
+        $contentRepository = $this->contentRepositoryRegistry->get($contentRepositoryId);
         $nodeTypes = [];
+        $nodeTypeManager = $contentRepository->getNodeTypeManager();
         /* @var $nodeType NodeType */
-        foreach ($this->nodeTypeManager->getNodeTypes() as $nodeType) {
+        foreach ($nodeTypeManager->getNodeTypes() as $nodeType) {
             $nodeTypes[] = [
                 'value' => $nodeType->name,
                 'label' => $nodeType->name,

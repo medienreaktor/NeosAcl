@@ -1,11 +1,17 @@
 <?php
+
 namespace Sandstorm\NeosAcl\Service;
 
 /*
  * This file is part of the Neos.ACLInspector package.
  */
 
+use Neos\ContentRepository\Core\DimensionSpace\DimensionSpacePoint;
+use Neos\ContentRepository\Core\NodeType\NodeTypeName;
 use Neos\ContentRepository\Core\Projection\ContentGraph\Node;
+use Neos\ContentRepository\Core\SharedModel\ContentRepository\ContentRepositoryId;
+use Neos\ContentRepository\Core\SharedModel\Workspace\WorkspaceName;
+use Neos\ContentRepositoryRegistry\ContentRepositoryRegistry;
 use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Security\Authorization\Privilege\PrivilegeInterface;
 use Neos\Flow\Security\Authorization\PrivilegeManagerInterface;
@@ -14,12 +20,14 @@ use Neos\Flow\Security\Policy\PolicyService;
 use Neos\Flow\Security\Policy\Role;
 use Neos\Neos\Domain\NodeLabel\NodeLabelGeneratorInterface;
 use Neos\Neos\Domain\Repository\SiteRepository;
+use Neos\Neos\Domain\Service\NodeTypeNameFactory;
+use Neos\Neos\Security\Authorization\Privilege\AbstractSubtreeTagBasedPrivilege;
 use Neos\Neos\Security\Authorization\Privilege\EditNodePrivilege;
 use Neos\Neos\Security\Authorization\Privilege\ReadNodePrivilege;
+use Neos\Neos\Security\Authorization\Privilege\SubtreeTagPrivilegeSubject;
 use Sandstorm\NeosAcl\Dto\ACLCheckerDto;
 
-class ACLCheckerService
-{
+class ACLCheckerService {
 
     /**
      * @Flow\Inject
@@ -41,6 +49,12 @@ class ACLCheckerService
 
     /**
      * @Flow\Inject
+     * @var ContentRepositoryRegistry
+     */
+    protected $contentRepositoryRegistry;
+
+    /**
+     * @Flow\Inject
      * @var  NodeLabelGeneratorInterface
      */
     protected $nodeLabelGenerator;
@@ -49,17 +63,15 @@ class ACLCheckerService
      * @param ACLCheckerDto $dto
      * @return array
      */
-    public function resolveDto(ACLCheckerDto $dto)
-    {
-        return $this->getNodes($dto);
+    public function resolveDto(ACLCheckerDto $dto, ContentRepositoryId $contentRepositoryId) {
+        return $this->getNodes($dto, $contentRepositoryId);
     }
 
     /**
      * @param Node $node
      * @return array
      */
-    public function checkNodeForRoles(Node $node, array $roles)
-    {
+    public function checkNodeForRoles(Node $node, array $roles) {
         $checkedNodes = [];
 
         foreach ($roles as $role) {
@@ -80,8 +92,7 @@ class ACLCheckerService
      * @param array $roles
      * @return array
      */
-    public function checkPrivilegeTargetsForNodeAndRoles(Node $node, array $roles)
-    {
+    public function checkPrivilegeTargetsForNodeAndRoles(Node $node, array $roles) {
         $result = [
             'denied' => [],
             'abstained' => [],
@@ -94,17 +105,13 @@ class ACLCheckerService
                 /** @var PrivilegeInterface $privilege */
 
                 // todo the check for ReadNodePrivilege can be removed if its method `matchesSubject()` is implemented
-                if (!$privilege instanceof ReadNodePrivilege && !$privilege instanceof AbstractNodePrivilege) {
+                if (!$privilege instanceof ReadNodePrivilege && !$privilege instanceof AbstractSubtreeTagBasedPrivilege) {
                     continue;
                 }
 
-                if ($privilege instanceof CreateNodePrivilege) {
-                    $nodeSubject = new CreateNodePrivilegeSubject($node, $node->getNodeType());
-                } else {
-                    $nodeSubject = new NodePrivilegeSubject($node);
-                }
+                $subject = new SubtreeTagPrivilegeSubject($node->tags->all(), $node->contentRepositoryId);
 
-                if (!$privilege->matchesSubject($nodeSubject)) {
+                if (!$privilege->matchesSubject($subject)) {
                     continue;
                 }
 
@@ -129,14 +136,14 @@ class ACLCheckerService
      * @param ACLCheckerDto $dto
      * @return array
      */
-    protected function getNodes(ACLCheckerDto $dto)
-    {
-        $context =  $this->createContext();
-
-        $site = $this->siteRepository->findFirstOnline();
-        $startNode = $context->getNode('/sites/' . $site->getNodeName());
-
+    protected function getNodes(ACLCheckerDto $dto, ContentRepositoryId $contentRepositoryId) {
         $roles = $this->getRolesByDto($dto);
+        $contentRepository = $this->contentRepositoryRegistry->get($contentRepositoryId);
+        $site = $this->siteRepository->findFirstOnline();
+
+        $subgraph = $contentRepository->getContentSubgraph(WorkspaceName::fromString(WorkspaceName::WORKSPACE_NAME_LIVE),
+            DimensionSpacePoint::createWithoutDimensions());
+        $startNode = $subgraph->findRootNodeByType(NodeTypeNameFactory::forSites());
 
         $nodes = [];
         $this->getChildNodeData($nodes, $startNode, $roles, $dto->getNodeTreeLoadingDepth());
@@ -144,8 +151,7 @@ class ACLCheckerService
         return $nodes;
     }
 
-    public function getContentNodes(NodeInterface $node, $roles, $nodeTreeLoadingDepth = 4)
-    {
+    public function getContentNodes(Node $node, $roles, $nodeTreeLoadingDepth = 4) {
         $context = $this->createContext();
         $nodes = [];
 
@@ -168,8 +174,7 @@ class ACLCheckerService
      * @param ACLCheckerDto $dto
      * @return array
      */
-    protected function getRolesByDto(ACLCheckerDto $dto)
-    {
+    protected function getRolesByDto(ACLCheckerDto $dto) {
         $roles = [];
         foreach ($dto->getRoles() as $roleIdentifier) {
             try {
@@ -182,14 +187,13 @@ class ACLCheckerService
 
     /**
      * @param array $nodes
-     * @param NodeInterface $node
+     * @param Node $node
      * @param array $roles
      * @param int $depth
      * @param int $recursionPointer
      * @param string $nodeTypeFilter
      */
-    protected function getChildNodeData(array &$nodes, $node, $roles, $depth = 0, $recursionPointer = 1, $nodeTypeFilter = 'Neos.Neos:Document')
-    {
+    protected function getChildNodeData(array &$nodes, $node, $roles, $depth = 0, $recursionPointer = 1, $nodeTypeFilter = 'Neos.Neos:Document') {
         foreach ($node->getChildNodes($nodeTypeFilter) as $childNode) {
             /** @var NodeInterface $childNode */
             $expand = ($depth === 0 || $recursionPointer < $depth);
@@ -197,7 +201,7 @@ class ACLCheckerService
             $properties = $this->getACLPropertiesForNode($childNode);
             $properties['acl'] = $this->checkNodeForRoles($node, $roles);
 
-            if($expand && $childNode->hasChildNodes($nodeTypeFilter)) {
+            if ($expand && $childNode->hasChildNodes($nodeTypeFilter)) {
                 $properties['childNodes'] = [];
                 $this->getChildNodeData($properties['childNodes'], $childNode, $roles, $depth, ($recursionPointer + 1), $nodeTypeFilter);
             }
@@ -206,8 +210,7 @@ class ACLCheckerService
         }
     }
 
-    protected function getACLPropertiesForNode(NodeInterface $node)
-    {
+    protected function getACLPropertiesForNode(NodeInterface $node) {
         $properties = [
             'nodeIdentifier' => $node->getIdentifier(),
             'nodePath' => $node->getPath(),
@@ -216,14 +219,5 @@ class ACLCheckerService
             'nodeLevel' => $node->getDepth(),
         ];
         return $properties;
-    }
-
-    /**
-     * @return \Neos\ContentRepository\Domain\Service\Context
-     */
-    protected function createContext()
-    {
-        $context = $this->contextFactory->create(array('workspaceName' => 'live'));
-        return $context;
     }
 }

@@ -12,6 +12,7 @@ use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Security\Policy\PolicyService;
 use Neos\Fusion\View\FusionView;
 use Neos\Neos\Controller\Module\AbstractModuleController;
+use Neos\Neos\FrontendRouting\SiteDetection\SiteDetectionResult;
 use Sandstorm\NeosAcl\Dto\ACLCheckerDto;
 use Sandstorm\NeosAcl\Service\ACLCheckerService;
 
@@ -47,8 +48,10 @@ class ACLInspectorController extends AbstractModuleController
         if ($dto === null) {
             $dto = new ACLCheckerDto();
         }
+        $siteDetectionResult = SiteDetectionResult::fromRequest($this->request->getHttpRequest());
+        $contentRepositoryId = $siteDetectionResult->contentRepositoryId;
 
-        $nodes = $this->aclCheckService->resolveDto($dto);
+        $nodes = $this->aclCheckService->resolveDto($dto, $contentRepositoryId);
 
         $this->view->assignMultiple(
             [

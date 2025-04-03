@@ -55,7 +55,8 @@ class DynamicRoleController extends ActionController
      */
     public function newAction()
     {
-        $this->view->assign('dynamicEditorProps', $this->dynamicRoleEditorService->generatePropsForReactWidget($this->request, null));
+        $value = $this->dynamicRoleEditorService->generatePropsForReactWidget($this->request, null);
+        $this->view->assign('dynamicEditorProps', json_encode($value));
         $templateDynamicRole = new DynamicRole();
         $templateDynamicRole->setAbstract(false);
         $templateDynamicRole->setParentRoleNames(['Neos.Neos:RestrictedEditor', 'Neos.Neos:LivePublisher']);

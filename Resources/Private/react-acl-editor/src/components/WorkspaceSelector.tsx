@@ -16,7 +16,7 @@ type WorkspaceSelectorProps = {
 
 
 export default React.memo(function WorkspaceSelector(props: WorkspaceSelectorProps) {
-    return (
+  return (
         <div className="neos-control-group">
             <label className="neos-control-label">... in workspace</label>
             <div className="neos-controls neos-controls-row">
