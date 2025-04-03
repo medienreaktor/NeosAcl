@@ -24,6 +24,7 @@ class NodeContextPerformanceAspect
      * @Flow\Around("method(Neos\ContentRepository\Security\Authorization\Privilege\Node\NodePrivilegeContext->getNodeByIdentifier())")
      * @return void
      */
+    //TODO: this
     public function boot(JoinPointInterface $joinPoint)
     {
         $nodeIdentifier = $joinPoint->getMethodArgument('nodeIdentifier');

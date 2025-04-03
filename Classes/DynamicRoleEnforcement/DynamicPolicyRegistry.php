@@ -32,9 +32,7 @@ final class DynamicPolicyRegistry
      * If this is changed, `Policy.yaml` must be adjusted correspondingly.
      */
     const ALLOWED_PRIVILEGE_TARGET_TYPES = [
-        'Neos\ContentRepository\Security\Authorization\Privilege\Node\EditNodePrivilege' => 'Sandstorm.NeosAcl:EditAllNodes',
-        'Neos\ContentRepository\Security\Authorization\Privilege\Node\CreateNodePrivilege' => 'Sandstorm.NeosAcl:CreateAllNodes',
-        'Neos\ContentRepository\Security\Authorization\Privilege\Node\RemoveNodePrivilege' => 'Sandstorm.NeosAcl:RemoveAllNodes'
+        'Neos\Neos\Security\Authorization\Privilege\EditNodePrivilege' => 'Sandstorm.NeosAcl:EditAllNodes',
     ];
 
     /**

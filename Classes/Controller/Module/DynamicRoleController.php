@@ -91,7 +91,8 @@ class DynamicRoleController extends ActionController
     public function editAction(DynamicRole $dynamicRole)
     {
         $this->view->assign('dynamicRole', $dynamicRole);
-        $this->view->assign('dynamicEditorProps', $this->dynamicRoleEditorService->generatePropsForReactWidget($this->request, MatcherConfiguration::fromJson($dynamicRole->getMatcher())));
+        $value = $this->dynamicRoleEditorService->generatePropsForReactWidget($this->request, MatcherConfiguration::fromJson($dynamicRole->getMatcher()));
+        $this->view->assign('dynamicEditorProps', json_encode($value));
         $this->assignAvailableRoles($dynamicRole);
     }
 
