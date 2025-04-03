@@ -4,33 +4,22 @@ namespace Sandstorm\NeosAcl\Service;
 /*
  * This file is part of the Neos.ACLInspector package.
  */
+
+use Neos\ContentRepository\Core\Projection\ContentGraph\Node;
 use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Security\Authorization\Privilege\PrivilegeInterface;
 use Neos\Flow\Security\Authorization\PrivilegeManagerInterface;
 use Neos\Flow\Security\Exception\NoSuchRoleException;
 use Neos\Flow\Security\Policy\PolicyService;
 use Neos\Flow\Security\Policy\Role;
+use Neos\Neos\Domain\NodeLabel\NodeLabelGeneratorInterface;
 use Neos\Neos\Domain\Repository\SiteRepository;
-use Neos\Neos\Security\Authorization\Privilege\NodeTreePrivilege;
-use Neos\ContentRepository\Domain\Model\NodeInterface;
-use Neos\ContentRepository\Domain\Model\NodeLabelGeneratorInterface;
-use Neos\ContentRepository\Domain\Service\ContextFactoryInterface;
-use Neos\ContentRepository\Security\Authorization\Privilege\Node\AbstractNodePrivilege;
-use Neos\ContentRepository\Security\Authorization\Privilege\Node\CreateNodePrivilege;
-use Neos\ContentRepository\Security\Authorization\Privilege\Node\CreateNodePrivilegeSubject;
-use Neos\ContentRepository\Security\Authorization\Privilege\Node\EditNodePrivilege;
-use Neos\ContentRepository\Security\Authorization\Privilege\Node\NodePrivilegeSubject;
-use Neos\ContentRepository\Security\Authorization\Privilege\Node\ReadNodePrivilege;
-use Neos\ContentRepository\Security\Authorization\Privilege\Node\RemoveNodePrivilege;
+use Neos\Neos\Security\Authorization\Privilege\EditNodePrivilege;
+use Neos\Neos\Security\Authorization\Privilege\ReadNodePrivilege;
 use Sandstorm\NeosAcl\Dto\ACLCheckerDto;
 
 class ACLCheckerService
 {
-    /**
-     * @Flow\Inject
-     * @var ContextFactoryInterface
-     */
-    protected $contextFactory;
 
     /**
      * @Flow\Inject
@@ -66,32 +55,32 @@ class ACLCheckerService
     }
 
     /**
-     * @param NodeInterface $node
+     * @param Node $node
      * @return array
      */
-    public function checkNodeForRoles(NodeInterface $node, array $roles)
+    public function checkNodeForRoles(Node $node, array $roles)
     {
         $checkedNodes = [];
 
         foreach ($roles as $role) {
             var_dump("ROLE" . $role);
             /** @var Role $role */
+            $editReason = "";
+            $readReason = "";
             $checkedNodes[$role->getIdentifier()] = [
-                'editNode' => $this->privilegeManager->isGrantedForRoles([$role], EditNodePrivilege::class, new NodePrivilegeSubject($node)),
-                'removeNode' => $this->privilegeManager->isGrantedForRoles([$role], RemoveNodePrivilege::class, new NodePrivilegeSubject($node)),
-                'createNodeOfType' => $this->privilegeManager->isGrantedForRoles([$role], CreateNodePrivilege::class, new CreateNodePrivilegeSubject($node)),
-                'showInTree' => $this->privilegeManager->isGrantedForRoles([$role], NodeTreePrivilege::class, new NodePrivilegeSubject($node))
+                'editNode' => $this->privilegeManager->isGrantedForRoles([$role], EditNodePrivilege::class, $editReason),
+                'readNode' => $this->privilegeManager->isGrantedForRoles([$role], ReadNodePrivilege::class, $readReason)
             ];
         }
         return $checkedNodes;
     }
 
     /**
-     * @param NodeInterface $node
+     * @param Node $node
      * @param array $roles
      * @return array
      */
-    public function checkPrivilegeTargetsForNodeAndRoles(NodeInterface $node, array $roles)
+    public function checkPrivilegeTargetsForNodeAndRoles(Node $node, array $roles)
     {
         $result = [
             'denied' => [],

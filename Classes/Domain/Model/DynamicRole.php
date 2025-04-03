@@ -65,7 +65,7 @@ class DynamicRole
     }
 
     /**
-     * @return boolan
+     * @return boolean
      */
     public function getAbstract()
     {
@@ -73,7 +73,7 @@ class DynamicRole
     }
 
     /**
-     * @param boolan $abstract
+     * @param boolean $abstract
      */
     public function setAbstract($abstract)
     {

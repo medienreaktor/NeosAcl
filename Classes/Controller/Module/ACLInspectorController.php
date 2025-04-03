@@ -5,12 +5,13 @@ namespace Sandstorm\NeosAcl\Controller\Module;
  * This file is part of the Neos.ACLInspector package.
  */
 
+use Neos\ContentRepository\Core\Projection\ContentGraph\Node;
+use Neos\ContentRepositoryRegistry\ContentRepositoryRegistry;
 use Neos\Eel\FlowQuery\FlowQuery;
 use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Security\Policy\PolicyService;
 use Neos\Fusion\View\FusionView;
 use Neos\Neos\Controller\Module\AbstractModuleController;
-use Neos\ContentRepository\Domain\Model\NodeInterface;
 use Sandstorm\NeosAcl\Dto\ACLCheckerDto;
 use Sandstorm\NeosAcl\Service\ACLCheckerService;
 
@@ -33,6 +34,12 @@ class ACLInspectorController extends AbstractModuleController
     protected $aclCheckService;
 
     /**
+     * @Flow\Inject
+     * @var ContentRepositoryRegistry
+     */
+    protected $contentRepositoryRegistry;
+
+    /**
      * @return void
      */
     public function indexAction(ACLCheckerDto $dto = null)
@@ -53,9 +60,9 @@ class ACLInspectorController extends AbstractModuleController
     }
 
     /**
-     * @param NodeInterface $node
+     * @param Node $node
      */
-    public function showAction(NodeInterface $node)
+    public function showAction(Node $node)
     {
         $roles = $this->policyService->getRoles(true);
 
@@ -69,21 +76,23 @@ class ACLInspectorController extends AbstractModuleController
     }
 
     /**
-     * @param NodeInterface $node
+     * @param Node $node
      * @return array
      */
-    protected function breadcrumbNodesForNode(NodeInterface $node)
+    protected function breadcrumbNodesForNode(Node $node)
     {
         $documentNodes = [];
         $flowQuery = new FlowQuery(array($node));
-        $nodes = array_reverse($flowQuery->parents('[instanceof TYPO3.Neos:Document]')->get());
-
-        /** @var NodeInterface $node */
+        $nodes = array_reverse($flowQuery->parents('[instanceof Neos.Neos:Document]')->get());
+        /** @var Node $node */
         foreach ($nodes as $documentNode) {
             $documentNodes[] = $documentNode;
         }
 
-        if ($node->getNodeType()->isOfType('TYPO3.Neos:Document')) {
+        $contentRepository = $this->contentRepositoryRegistry->get($node->contentRepositoryId);
+        $nodeType = $contentRepository->getNodeTypeManager()->getNodeType($node->nodeTypeName);
+
+        if ($nodeType->isOfType('Neos.Neos:Document')) {
             $documentNodes[] = $node;
         }
 

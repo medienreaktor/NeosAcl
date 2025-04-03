@@ -6,30 +6,49 @@ namespace Sandstorm\NeosAcl\Service;
  * This file is part of the Neos.ACLInspector package.
  */
 
-use Neos\ContentRepository\Domain\Repository\WorkspaceRepository;
-use Neos\ContentRepository\Domain\Service\ContentDimensionPresetSourceInterface;
-use Neos\ContentRepository\Domain\Service\NodeTypeManager;
+use Neos\ContentRepository\Core\DimensionSpace\DimensionSpacePoint;
+use Neos\ContentRepository\Core\NodeType\NodeType;
+use Neos\ContentRepository\Core\NodeType\NodeTypeManager;
+use Neos\ContentRepository\Core\Projection\ContentGraph\Filter\FindClosestNodeFilter;
+use Neos\ContentRepository\Core\Projection\ContentGraph\Node;
+use Neos\ContentRepository\Core\SharedModel\ContentRepository\ContentRepositoryId;
+use Neos\ContentRepository\Core\SharedModel\Node\NodeAggregateId;
+use Neos\ContentRepository\Core\SharedModel\Workspace\Workspace;
+use Neos\ContentRepositoryRegistry\ContentRepositoryRegistry;
 use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Mvc\ActionRequest;
 use Neos\Flow\Mvc\Routing\UriBuilder;
 use Neos\Flow\ResourceManagement\ResourceManager;
 use Neos\Flow\Security\Context;
-use Neos\ContentRepository\Domain\Model\NodeInterface;
-use Neos\ContentRepository\Domain\Service\ContextFactoryInterface;
+use Neos\Neos\Domain\Model\Site;
+use Neos\Neos\Domain\Model\WorkspaceClassification;
+use Neos\Neos\Domain\Service\NodeTypeNameFactory;
+use Neos\Neos\Domain\Service\WorkspaceService;
+use Neos\Neos\FrontendRouting\SiteDetection\SiteDetectionResult;
 use Neos\Neos\Service\UserService;
 use Sandstorm\NeosAcl\Domain\Dto\MatcherConfiguration;
 
 /**
  * @Flow\Scope("singleton")
  */
-class DynamicRoleEditorService
-{
+class DynamicRoleEditorService {
 
     /**
      * @Flow\Inject
      * @var NodeTypeManager
      */
     protected $nodeTypeManager;
+
+    /**
+     * @Flow\Inject
+     * @var ContentRepositoryRegistry
+     */
+    protected $contentRepositoryRegistry;
+    /**
+     * @Flow\Inject
+     * @var WorkspaceService
+     */
+    protected $workspaceService;
 
     /**
      * @Flow\Inject
@@ -43,25 +62,6 @@ class DynamicRoleEditorService
      */
     protected $resourceManager;
 
-
-    /**
-     * @Flow\Inject
-     * @var WorkspaceRepository
-     */
-    protected $workspaceRepository;
-
-    /**
-     * @Flow\Inject
-     * @var ContentDimensionPresetSourceInterface
-     */
-    protected $contentDimensionPresetSource;
-
-    /**
-     * @Flow\Inject
-     * @var ContextFactoryInterface
-     */
-    protected $contextFactory;
-
     /**
      * @Flow\InjectConfiguration(path="userInterface.navigateComponent.nodeTree.loadingDepth", package="Neos.Neos")
      * @var string
@@ -74,55 +74,57 @@ class DynamicRoleEditorService
      */
     protected $userService;
 
-    public function generatePropsForReactWidget(ActionRequest $actionRequest, ?MatcherConfiguration $dynamicRoleMatcherConfiguration): string
-    {
+    public function generatePropsForReactWidget(ActionRequest $actionRequest, ?MatcherConfiguration $dynamicRoleMatcherConfiguration): string {
+        $siteDetectionResult = SiteDetectionResult::fromRequest($actionRequest->getHttpRequest());
+        $contentRepositoryId = $siteDetectionResult->contentRepositoryId;
         $props = [
             'nodeTypes' => $this->generateNodeTypeNames(),
             'nodeSearchEndpoint' => $this->generateNodeSearchEndpoint($actionRequest),
-            'siteNode' => $this->getSiteNode()->getContextPath(),
+            'siteNodeName' => $this->getSiteNode($contentRepositoryId)->aggregateId,
             'nodeTreeLoadingDepth' => (int)$this->nodeTreeLoadingDepth,
-
             'csrfProtectionToken' => $this->securityContext->getCsrfProtectionToken(),
             'cssFilePath' => $this->resourceManager->getPublicPackageResourceUriByPath('resource://Sandstorm.NeosAcl/Public/React/extra-neos-wrapper.css'),
-            'workspaces' => $this->getWorkspaces(),
-            'dimensions' => $this->getDimensionPresets(),
+            'workspaces' => $this->getWorkspaces($contentRepositoryId),
+            'dimensions' => $this->getDimensionPresets($contentRepositoryId),
             'expandedNodes' => $dynamicRoleMatcherConfiguration ? $this->generateExpandedNodeIdentifiers($dynamicRoleMatcherConfiguration, $this->getSiteNode()) : [],
         ];
 
         return json_encode($props);
     }
 
-    private function generateNodeTypeNames()
-    {
+    private function generateNodeTypeNames() {
         $nodeTypes = [];
-        /* @var $nodeType \Neos\ContentRepository\Domain\Model\NodeType */
+        /* @var $nodeType NodeType */
         foreach ($this->nodeTypeManager->getNodeTypes() as $nodeType) {
             $nodeTypes[] = [
-                'value' => $nodeType->getName(),
-                'label' => $nodeType->getName(),
+                'value' => $nodeType->name,
+                'label' => $nodeType->name,
                 'isDocumentNode' => $nodeType->isOfType('Neos.Neos:Document')
             ];
         }
         return $nodeTypes;
     }
 
-    private function generateNodeSearchEndpoint(ActionRequest $actionRequest): string
-    {
+    private function generateNodeSearchEndpoint(ActionRequest $actionRequest): string {
         $uriBuilder = new UriBuilder();
         $uriBuilder->setRequest($actionRequest->getMainRequest());
         return $uriBuilder->setCreateAbsoluteUri(true)->uriFor('index', [], 'Service\Nodes', 'Neos.Neos');
     }
 
-    protected function getWorkspaces()
-    {
-        $result = [];
-        foreach ($this->workspaceRepository->findAll() as $workspace) {
-            /* @var $workspace \Neos\ContentRepository\Domain\Model\Workspace */
+    protected function getWorkspaces(ContentRepositoryId $contentRepositoryId) {
 
-            if (!$workspace->isPersonalWorkspace() && $workspace->getName() !== 'live') {
+        $result = [];
+        $contentRepository = $this->contentRepositoryRegistry->get($contentRepositoryId);
+        $workspaces = $contentRepository->findWorkspaces();
+        foreach ($workspaces as $workspace) {
+            /* @var $workspace Workspace */
+            $workspaceMetadata = $this->workspaceService->getWorkspaceMetadata($contentRepositoryId, $workspace->workspaceName);
+            $isPersonal = $workspaceMetadata->classification === WorkspaceClassification::PERSONAL;
+            $workspaceName = $workspace->workspaceName->value;
+            if (!$isPersonal && $workspaceName !== 'live') {
                 $result[] = [
-                    'name' => $workspace->getName(),
-                    'label' => $workspace->getTitle()
+                    'name' => $workspaceName,
+                    'label' => $workspaceMetadata->title
                 ];
             }
         }
@@ -130,43 +132,50 @@ class DynamicRoleEditorService
         return $result;
     }
 
-    protected function getDimensionPresets()
-    {
+    //TODO: get the label?
+
+    protected function getDimensionPresets(ContentRepositoryId $contentRepositoryId) {
         $result = [];
 
-        foreach ($this->contentDimensionPresetSource->getAllPresets() as $dimensionName => $dimensionConfig) {
-            foreach ($dimensionConfig['presets'] as $presetName => $presetConfig) {
+        $contentRepository = $this->contentRepositoryRegistry->get($contentRepositoryId);
+        $dimensions = $contentRepository->getContentDimensionSource()->getContentDimensionsOrderedByPriority();
+        foreach ($dimensions as $dimensionName => $dimensionConfig) {
+            foreach ($dimensionConfig->getRootValues() as $presetName => $presetConfig) {
                 $result[] = [
                     'dimensionName' => $dimensionName,
                     'presetName' => $presetName,
                     'dimensionLabel' => $dimensionConfig['label'],
-                    'presetLabel' => $presetConfig['label'],
+                    'presetLabel' => $presetConfig->value,
                 ];
             }
         }
         return $result;
     }
 
-    public function getSiteNode(): NodeInterface
-    {
-        $context = $this->contextFactory->create([
-            'workspaceName' => $this->userService->getPersonalWorkspaceName()
-        ]);
-
-        return $context->getCurrentSiteNode();
+    public function getSiteNode(ContentRepositoryId $contentRepositoryId): Node {
+        $currentUser = $this->userService->getBackendUser();
+        $contentRepository = $this->contentRepositoryRegistry->get($contentRepositoryId);
+        $workspace = $this->workspaceService->getPersonalWorkspaceForUser($contentRepositoryId, $currentUser->getId());
+        $workspaceName =  $workspace->workspaceName;
+        $subgraph = $contentRepository->getContentSubgraph($workspaceName, DimensionSpacePoint::createWithoutDimensions());
+        $siteNode = $subgraph->findRootNodeByType(NodeTypeNameFactory::forSites());
+        return $siteNode;
     }
 
-    private function generateExpandedNodeIdentifiers(MatcherConfiguration $dynamicRoleMatcherConfiguration, NodeInterface $siteNode)
-    {
+    private function generateExpandedNodeIdentifiers(MatcherConfiguration $dynamicRoleMatcherConfiguration, Node $siteNode) {
         $nodeContextPaths = [];
 
+        $contentRepository = $this->contentRepositoryRegistry->get($siteNode->contentRepositoryId);
+        $subgraph = $contentRepository->getContentSubgraph($siteNode->workspaceName, $siteNode->dimensionSpacePoint);
+
         foreach ($dynamicRoleMatcherConfiguration->getSelectedNodeIdentifiers() as $nodeIdentifier) {
-            $node = $this->getSiteNode()->getContext()->getNodeByIdentifier($nodeIdentifier);
-            if ($node && $node->getParent() && $node !== $siteNode) {
+            $node = $subgraph->findNodeById(NodeAggregateId::fromString($nodeIdentifier));
+            $parent = $subgraph->findParentNode($node->aggregateId);
+            if ($node && $parent && $node->aggregateId !== $siteNode->aggregateId) {
                 // the node itself does not need to be expanded, but all parents should be expanded (so that the node which has the restriction is visible in the tree)
-                while ($node->getParent() && $node->getParent() !== $siteNode) {
-                    $node = $node->getParent();
-                    $nodeContextPaths[$node->getContextPath()] = $node->getContextPath();
+                while ($parent && $parent->aggregateId !== $siteNode->aggregateId) {
+                    $node = $subgraph->findParentNode($node->aggregateId);
+                    $nodeContextPaths[] = $node->aggregateId;
                 }
             }
         }

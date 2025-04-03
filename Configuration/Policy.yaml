@@ -8,21 +8,10 @@ privilegeTargets:
 
   # NOTE: if adding new "catch-all" PrivilegeTargets, they need to be added to
   # DynamicPolicyRegistry::ALLOWED_PRIVILEGE_TARGET_TYPES
-  'Neos\ContentRepository\Security\Authorization\Privilege\Node\EditNodePrivilege':
+  'Neos\Neos\Security\Authorization\Privilege\EditNodePrivilege':
     # this privilegeTarget is defined to switch to a "whitelist" approach
     'Sandstorm.NeosAcl:EditAllNodes':
       matcher: 'TRUE'
-
-  'Neos\ContentRepository\Security\Authorization\Privilege\Node\CreateNodePrivilege':
-    # this privilegeTarget is defined to switch to a "whitelist" approach
-    'Sandstorm.NeosAcl:CreateAllNodes':
-      matcher: 'TRUE'
-
-  'Neos\ContentRepository\Security\Authorization\Privilege\Node\RemoveNodePrivilege':
-    # this privilegeTarget is defined to switch to a "whitelist" approach
-    'Sandstorm.NeosAcl:RemoveAllNodes':
-      matcher: 'TRUE'
-
 roles:
   'Neos.Neos:Administrator':
     privileges:
@@ -36,21 +25,9 @@ roles:
       -
         privilegeTarget: 'Sandstorm.NeosAcl:EditAllNodes'
         permission: GRANT
-      -
-        privilegeTarget: 'Sandstorm.NeosAcl:CreateAllNodes'
-        permission: GRANT
-      -
-        privilegeTarget: 'Sandstorm.NeosAcl:RemoveAllNodes'
-        permission: GRANT
   'Neos.Neos:Editor':
       # Admins and unrestricted editors can still do everything.
       privileges:
         -
           privilegeTarget: 'Sandstorm.NeosAcl:EditAllNodes'
-          permission: GRANT
-        -
-          privilegeTarget: 'Sandstorm.NeosAcl:CreateAllNodes'
-          permission: GRANT
-        -
-          privilegeTarget: 'Sandstorm.NeosAcl:RemoveAllNodes'
           permission: GRANT
