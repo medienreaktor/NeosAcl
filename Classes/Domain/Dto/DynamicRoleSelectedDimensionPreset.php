@@ -20,7 +20,7 @@ use Neos\Flow\Annotations as Flow;
  * @return string
  * @Flow\Proxy(false)
  */
-class MatcherConfigurationSelectedDimensionPreset
+class DynamicRoleSelectedDimensionPreset
 {
 
     /**
@@ -55,10 +55,5 @@ class MatcherConfigurationSelectedDimensionPreset
     public function __toString()
     {
         return sprintf('%s: %s', $this->dimensionName, $this->presetName);
-    }
-
-    public function toPolicyMatcherString(): string
-    {
-        return sprintf('isInDimensionPreset("%s", "%s")', $this->dimensionName, $this->presetName);
     }
 }

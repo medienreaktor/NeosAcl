@@ -9,12 +9,13 @@ namespace Sandstorm\NeosAcl\Domain\Model;
 use Neos\Flow\Annotations as Flow;
 use Doctrine\ORM\Mapping as ORM;
 use Sandstorm\NeosAcl\Domain\Dto\MatcherConfiguration;
+use Sandstorm\NeosAcl\Domain\Dto\DynamicRoleSelectedDimensionPreset;
+use Sandstorm\NeosAcl\Domain\Dto\DynamicRoleSelectedNode;
 
 /**
  * @Flow\Entity
  */
-class DynamicRole
-{
+class DynamicRole {
 
     /**
      * @Flow\Validate(type="RegularExpression", options={"regularExpression"="/^\w+$/"})
@@ -33,11 +34,22 @@ class DynamicRole
      */
     protected $parentRoleNames;
 
+
     /**
      * @ORM\Column(type="flow_json_array")
-     * @var array
+     * @var array<string>
      */
-    protected $matcher = [];
+    protected $workspaceNames;
+
+    /**
+     * @var DynamicRoleSelectedNode[]
+     */
+    protected $selectedNodes;
+
+    /**
+     * @var DynamicRoleSelectedDimensionPreset[]
+     */
+    protected $selectedDimensionPresets;
 
     const PRIVILEGE_VIEW = 'view';
     const PRIVILEGE_VIEW_EDIT = 'view_edit';
@@ -51,99 +63,111 @@ class DynamicRole
     /**
      * @return string
      */
-    public function getName()
-    {
+    public function getName() {
         return $this->name;
     }
 
     /**
      * @param string $name
      */
-    public function setName($name)
-    {
+    public function setName($name) {
         $this->name = $name;
     }
 
     /**
      * @return boolean
      */
-    public function getAbstract()
-    {
+    public function getAbstract() {
         return $this->abstract;
     }
 
     /**
      * @param boolean $abstract
      */
-    public function setAbstract($abstract)
-    {
+    public function setAbstract($abstract) {
         $this->abstract = $abstract;
     }
 
     /**
      * @return array
      */
-    public function getParentRoleNames()
-    {
+    public function getParentRoleNames() {
         return $this->parentRoleNames;
     }
 
     /**
      * @param array $parentRoleNames
      */
-    public function setParentRoleNames($parentRoleNames)
-    {
+    public function setParentRoleNames($parentRoleNames) {
         $this->parentRoleNames = $parentRoleNames;
-    }
-
-    /**
-     * @return array
-     */
-    public function getMatcher()
-    {
-        return $this->matcher;
-    }
-
-    /**
-     * @param array $matcher
-     */
-    public function setMatcher($matcher)
-    {
-        $this->matcher = $matcher;
     }
 
     /**
      * @return string
      */
-    public function getPrivilege()
-    {
+    public function getPrivilege() {
         return $this->privilege;
     }
 
     /**
      * @param string $privilege
      */
-    public function setPrivilege($privilege)
-    {
+    public function setPrivilege($privilege) {
         $this->privilege = $privilege;
     }
 
 
-    public function getPrivilegeExplanation(): string
-    {
+    public function getPrivilegeExplanation(): string {
         switch ($this->privilege) {
-            case self::PRIVILEGE_VIEW:
-                return 'view';
             case self::PRIVILEGE_VIEW_EDIT:
                 return 'view, edit';
             case self::PRIVILEGE_VIEW_EDIT_CREATE_DELETE:
                 return 'view, edit, create, delete';
+            default:
+                return 'view';
         }
     }
 
-    public function getMatcherExplanationParts(): array
-    {
-        return MatcherConfiguration::fromJson($this->matcher)->renderExplanationParts();
+    /**
+     * @return string[]
+     */
+    public function getWorkspaceNames(): array {
+        return $this->workspaceNames;
+    }
+
+    /**
+     * @return DynamicRoleSelectedDimensionPreset[]
+     */
+    public function getSelectedDimensionPresets(): array {
+        return $this->selectedDimensionPresets;
+    }
+
+    /**
+     * @return DynamicRoleSelectedNode[]
+     */
+    public function getSelectedNodes(): array {
+        return $this->selectedNodes;
+    }
+
+    /**
+     * @param string[] $workspaceNames
+     */
+    public function setWorkspaceNames(array $workspaceNames): void {
+        $this->workspaceNames = $workspaceNames;
+    }
+
+    /**
+     * @param DynamicRoleSelectedDimensionPreset[] $selectedDimensionPresets
+     */
+    public function setSelectedDimensionPresets(array $selectedDimensionPresets): void {
+        $this->selectedDimensionPresets = $selectedDimensionPresets;
+    }
+
+    /**
+     * @param DynamicRoleSelectedNode[] $selectedNodes
+     */
+    public function setSelectedNodes(array $selectedNodes): void {
+        $this->selectedNodes = $selectedNodes;
     }
 
 }

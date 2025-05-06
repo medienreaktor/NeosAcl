@@ -14,7 +14,7 @@ use Neos\Fusion\View\FusionView;
 use Neos\Neos\Controller\Module\AbstractModuleController;
 use Neos\Neos\FrontendRouting\SiteDetection\SiteDetectionResult;
 use Sandstorm\NeosAcl\Dto\ACLCheckerDto;
-use Sandstorm\NeosAcl\Service\ACLCheckerService;
+use Sandstorm\NeosAcl\Service\ACLCheckerServiceOld;
 
 class ACLInspectorController extends AbstractModuleController
 {
@@ -30,7 +30,7 @@ class ACLInspectorController extends AbstractModuleController
 
     /**
      * @Flow\Inject
-     * @var ACLCheckerService
+     * @var ACLCheckerServiceOld
      */
     protected $aclCheckService;
 
